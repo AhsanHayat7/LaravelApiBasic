@@ -13,4 +13,10 @@ class Apicontroller extends Controller
             "data" => $data,
         ], $status);
     }
+
+    protected function errorResponse($messages = "Error", $status = 500 ){
+        return response()->json([
+            "messages" => $messages,
+        ], $status);
+    }
 }
