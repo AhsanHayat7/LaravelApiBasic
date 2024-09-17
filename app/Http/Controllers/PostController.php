@@ -17,8 +17,8 @@ class PostController extends ApiController
      */
     public function index()
     {
-        // Get all posts (You can filter posts for authenticated users if necessary)
-        $posts = Post::all();
+        // Get all posts that belong to the authenticated user
+        $posts = Post::where('user_id', Auth::id())->get();
 
         return $this->successResponse($posts);
     }
@@ -59,15 +59,16 @@ class PostController extends ApiController
     /**
      * Display the specified resource.
      *
-     * @param  \App\Models\Post  $post
+     * @param  int  $id
      * @return \Illuminate\Http\Response
      */
     public function show($id)
     {
-        $post = Post::find($id);
+        // Get the post that belongs to the authenticated user
+        $post = Post::where('id', $id)->where('user_id', Auth::id())->first();
 
         if (!$post) {
-            return $this->errorResponse('Post Not Found');
+            return $this->errorResponse('Post Not Found or Unauthorized', 404);
         }
 
         return $this->successResponse($post);
@@ -77,20 +78,16 @@ class PostController extends ApiController
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Post  $post
+     * @param  int  $id
      * @return \Illuminate\Http\Response
      */
     public function update(UpdatePostRequest $request, $id)
     {
-        $post = Post::find($id);
+        // Get the post that belongs to the authenticated user
+        $post = Post::where('id', $id)->where('user_id', Auth::id())->first();
 
         if (!$post) {
-            return $this->errorResponse('Post Not Found');
-        }
-
-        // Check if the authenticated user owns the post
-        if ($post->user_id !== Auth::id()) {
-            return $this->errorResponse('Unauthorized', 403);
+            return $this->errorResponse('Post Not Found or Unauthorized', 404);
         }
 
         $validated = $request->validated();
@@ -119,20 +116,16 @@ class PostController extends ApiController
     /**
      * Remove the specified resource from storage.
      *
-     * @param  int $id
+     * @param  int  $id
      * @return \Illuminate\Http\Response
      */
     public function destroy($id)
     {
-        $post = Post::find($id);
+        // Get the post that belongs to the authenticated user
+        $post = Post::where('id', $id)->where('user_id', Auth::id())->first();
 
         if (!$post) {
-            return $this->errorResponse('Post Not Found');
-        }
-
-        // Check if the authenticated user owns the post
-        if ($post->user_id !== Auth::id()) {
-            return $this->errorResponse('Unauthorized', 403);
+            return $this->errorResponse('Post Not Found or Unauthorized', 404);
         }
 
         // Delete the image if it exists
