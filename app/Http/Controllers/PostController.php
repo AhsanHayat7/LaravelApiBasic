@@ -6,6 +6,7 @@ use App\Http\Requests\StorePostRequest;
 use App\Http\Requests\UpdatePostRequest;
 use App\Models\Post;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class PostController extends ApiController
 {
@@ -16,11 +17,10 @@ class PostController extends ApiController
      */
     public function index()
     {
-        //
-        $posts = Post::get();
+        // Get all posts (You can filter posts for authenticated users if necessary)
+        $posts = Post::all();
 
-
-          return  $this->SuccessResponse($posts);
+        return $this->successResponse($posts);
     }
 
     /**
@@ -31,33 +31,29 @@ class PostController extends ApiController
      */
     public function store(StorePostRequest $request)
     {
-        //
-    //   $posts = new Post ;
-    //   $posts->title = $request->title;
-    //   $posts->content = $request->content;
-    //   $posts->save();
+        // Get authenticated user
+        $user = Auth::user();
 
+        // Validate request
+        $validated = $request->validated();
 
+        if ($request->hasFile('images')) {
+            // Handle file upload
+            $image = $request->file('images');
+            $image_new_name = time() . '_' . $image->getClientOriginalName();
+            $image->move(public_path('uploads/posts'), $image_new_name);
 
-    $validated = $request->validated();
+            // Save image path in validated data
+            $validated['images'] = 'uploads/posts/' . $image_new_name;
+        }
 
-    if ($request->hasFile('images')) {
-        // Get the uploaded file
-        $image = $request->file('images');
+        // Associate the post with the authenticated user
+        $validated['user_id'] = $user->id;
 
-        // Create a new name for the image (time + original file name)
-        $image_new_name = time() . '_' . $image->getClientOriginalName();
+        // Create the post
+        $post = Post::create($validated);
 
-        // Move the image to the 'uploads/posts' directory in the public folder
-        $image->move(public_path('uploads/posts'), $image_new_name);
-
-        // Save the relative path to the 'images' column in the database
-        $validated['images'] = 'uploads/posts/' . $image_new_name;
-    }
-     $posts = Post::create($validated);
-
-
-       return $this->successResponse($posts, 'New Post Created!!',201);
+        return $this->successResponse($post, 'New Post Created!', 201);
     }
 
     /**
@@ -68,11 +64,12 @@ class PostController extends ApiController
      */
     public function show($id)
     {
-        //
-        $post = Post::whereId($id)->first();
-        if(!$post){
-          return  $this->errorResponse('Post Not Found');
+        $post = Post::find($id);
+
+        if (!$post) {
+            return $this->errorResponse('Post Not Found');
         }
+
         return $this->successResponse($post);
     }
 
@@ -83,61 +80,69 @@ class PostController extends ApiController
      * @param  \App\Models\Post  $post
      * @return \Illuminate\Http\Response
      */
-    public function update(UpdatePostRequest $request, Post $id)
+    public function update(UpdatePostRequest $request, $id)
     {
-        //
-        // $post->title = $request->title ?? $post->title;
-        // $post->content = $request->content ?? $post->content;
-        // $post->save();
+        $post = Post::find($id);
 
+        if (!$post) {
+            return $this->errorResponse('Post Not Found');
+        }
 
-         // Validate incoming data
-         $post = Post::whereId($id)->first();
-         if(!$post){
-            return  $this->errorResponse('Post Not Found');
-         }
+        // Check if the authenticated user owns the post
+        if ($post->user_id !== Auth::id()) {
+            return $this->errorResponse('Unauthorized', 403);
+        }
+
         $validated = $request->validated();
 
         if ($request->hasFile('images')) {
             // Delete the old image if it exists
-            if ($post->image && file_exists(public_path($post->image))) {
-                unlink(public_path($post->image));
+            if ($post->images && file_exists(public_path($post->images))) {
+                unlink(public_path($post->images));
             }
 
-            // Handle the file upload
+            // Handle file upload
             $image = $request->file('images');
-            $image_new_name = time() . '_' . $image->getClientOriginalName(); // Generate new image name
-            $image->move(public_path('uploads/posts'), $image_new_name); // Move the image to the 'uploads/students' directory
+            $image_new_name = time() . '_' . $image->getClientOriginalName();
+            $image->move(public_path('uploads/posts'), $image_new_name);
 
-            // Save the image path in the database
+            // Update the image path in the validated data
             $validated['images'] = 'uploads/posts/' . $image_new_name;
         }
+
+        // Update the post
         $post->update($validated);
 
-        return $this->successResponse($post, 'Updated Post');
+        return $this->successResponse($post, 'Post Updated!');
     }
 
     /**
      * Remove the specified resource from storage.
      *
-     * @param  \App\Models\Post  $post
+     * @param  int $id
      * @return \Illuminate\Http\Response
      */
-    public function destroy(Post $id)
+    public function destroy($id)
     {
-        //
-        // return response()->json([
-        //     "messages"=> "Post Deleted",
-        //     "posts"=> $post->delete(),
-        //   ],200 );
-        $post = Post::whereId($id)->first();
-        if(!$post){
-            return $this->errorResponse();
-         }
+        $post = Post::find($id);
+
+        if (!$post) {
+            return $this->errorResponse('Post Not Found');
+        }
+
+        // Check if the authenticated user owns the post
+        if ($post->user_id !== Auth::id()) {
+            return $this->errorResponse('Unauthorized', 403);
+        }
+
+        // Delete the image if it exists
+        if ($post->images && file_exists(public_path($post->images))) {
+            unlink(public_path($post->images));
+        }
+
+        // Delete the post
         $post->delete();
-        return $this->successResponse(null, 'Post Deleted',201);
+
+        return $this->successResponse(null, 'Post Deleted', 200);
     }
-
-
-
 }
